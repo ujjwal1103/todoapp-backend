@@ -8,7 +8,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(express.json());
 mongoose
-  .connect(process.env.DB_URL)
+  .connect(process.env.DB_URL, { useNewUrlParser: true, useUnifiedTopology: true })
   .then(() => console.log("Connected to MongoDB Atlas"))
   .catch((error) => console.error("Error connecting to MongoDB Atlas:", error));
 
