@@ -44,11 +44,10 @@ router.put("/todos/:id", async (req, res) => {
 router.get("/todos", async (req, res) => {
   try {
     const todos = await Todo.find();
-
     res.json(todos);
   } catch (error) {
     console.error("Error retrieving Todos:", error);
-    res.status(500).json({ message: "Error retrieving Todos" });
+    res.status(500).json({ error });
   }
 });
 
