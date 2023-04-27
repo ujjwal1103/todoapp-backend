@@ -13,7 +13,7 @@ router.post("/todos", async (req, res) => {
 
     const savedTodo = await newTodo.save();
 
-    res.status(201).json(savedTodo);
+    res.status(200).json(savedTodo);
   } catch (error) {
     console.error("Error creating new Todo:", error);
     res.status(500).json({ message: "Error creating new Todo" });
@@ -83,10 +83,8 @@ router.delete('/todos/:id', async (req, res) => {
 
 
   router.delete('/multitodos', async (req, res) => {
-    const { ids } = req.body;
-  
     try {
-      const result = await Todo.deleteMany({ _id: { $in: ids } });
+      const result = await Todo.deleteMany({ _id: { $in: req.body } });
   
       if (result.deletedCount === 0) {
         return res.status(404).json({ message: 'Todos not found' });
