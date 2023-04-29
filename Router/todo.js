@@ -5,10 +5,10 @@ const router = express.Router();
 
 router.post("/todos", async (req, res) => {
   try {
-    const { title } = req.body;
+    const { title, description } = req.body;
 
     const newTodo = new Todo({
-      title,
+      title,description
     });
 
     const savedTodo = await newTodo.save();
