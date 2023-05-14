@@ -2,6 +2,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
 const todosRouter = require("./Router/todo.js");
+const userRouter = require("./Router/user.js");
 const cors = require('cors')
 require("dotenv").config();
 const port = process.env.PORT || 3100;
@@ -19,6 +20,7 @@ mongoose
 // app.use("/products", productRouter);
 
 app.use("/api", todosRouter);
+app.use("/api", userRouter);
 
 
 // Start the server
