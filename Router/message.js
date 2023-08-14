@@ -2,20 +2,21 @@ const express = require("express");
 const router = express.Router();
 const Message = require("../model/Message");
 const Conversation = require("../model/Conversation");
+const { requireSignIn } = require("../middleware/authMiddleware");
 
-router.post("/message", async (req, res) => {
+router.post("/message", requireSignIn, async (req, res) => {
+  console.log("reqbody", req.body);
   try {
-    const newMessage = req.body; 
-    newMessage.seen = false; /// Assuming the request body contains the message data in JSON format
+    const newMessage = req.body;
+    newMessage.seen = false;
     const message = await Message.create(newMessage);
-    console.log(message);
 
     const conversation = await Conversation.findByIdAndUpdate(
       { _id: req.body.conversationId },
       { lastMessage: message._id },
       { new: true }
     );
-    
+
     res.status(201).json({
       isSuccess: true,
       message: message,
@@ -30,20 +31,12 @@ router.post("/message", async (req, res) => {
   }
 });
 
-router.get("/messages/:conversationId", async (req, res) => {
+router.get("/messages/:conversationId", requireSignIn, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const messages = await Message.find({ conversationId });
-
-    messages.forEach(async (message) => {
-      if (!message.seen) {
-        message.seen = true;
-        await message.save();
-      }
-    });
-
     if (messages.length === 0) {
-      return res.status(404).json({
+      return res.status(201).json({
         isSuccess: false,
         message: "No messages found for this conversation.",
       });
@@ -61,7 +54,7 @@ router.get("/messages/:conversationId", async (req, res) => {
   }
 });
 
-router.delete("/messages/:conversationId", async (req, res) => {
+router.delete("/messages/:conversationId", requireSignIn, async (req, res) => {
   try {
     const { conversationId } = req.params;
 
@@ -70,9 +63,12 @@ router.delete("/messages/:conversationId", async (req, res) => {
       conversationId: conversationId,
     }).sort({ createdAt: -1 });
 
-    const deletedMessages = await Message.deleteMany({
-      conversationId: conversationId,
-    },{ seen: false });
+    const deletedMessages = await Message.deleteMany(
+      {
+        conversationId: conversationId,
+      },
+      { seen: false }
+    );
 
     if (deletedMessages.deletedCount === 0) {
       return res.status(404).json({
@@ -103,5 +99,27 @@ router.delete("/messages/:conversationId", async (req, res) => {
     });
   }
 });
+
+router.put("/seen", requireSignIn, async (req, res) => {
+  const userId = req.user.userId;
+  const conversationId = req.body.conversationId;
+  const filter = {
+    conversationId: conversationId,
+    receiver: userId
+  };
+  const update = {
+    seen: true
+  };
+  try {
+    await Message.updateMany(filter, update);
+    const updatedMessages = await Message.find(filter);
+    console.log(updatedMessages);
+    res.status(200).json(updatedMessages);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "An error occurred" });
+  }
+});
+
 
 module.exports = router;

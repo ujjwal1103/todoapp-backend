@@ -3,9 +3,12 @@ const router = express.Router();
 const Conversation = require("../model/Conversation");
 const mongoose = require("mongoose");
 const Message = require("../model/Message");
-// POST route to create a new conversation
-router.post("/conversation", async (req, res) => {
-  const participants = req.body.participants;
+const { requireSignIn } = require("../middleware/authMiddleware");
+
+router.post("/conversation/:id", requireSignIn, async (req, res) => {
+  const { userId } = req.user;
+  const { id } = req.params;
+  const participants = [userId, id];
   if (
     !Array.isArray(participants) ||
     participants.length < 2 ||
@@ -18,12 +21,12 @@ router.post("/conversation", async (req, res) => {
     });
   }
 
-  // Check if a conversation with the same participants already exists
   const existingConversation = await Conversation.findOne({
     participants: { $all: participants },
-  });
-
-  console.log("existingConversation", existingConversation);
+  }).populate({
+    path: "participants",
+    select: "-password -__v",
+  });;
 
   if (existingConversation) {
     return res.status(409).json({
@@ -33,15 +36,16 @@ router.post("/conversation", async (req, res) => {
     });
   }
 
-  const newConversation = new Conversation({ ...req.body });
-  console.log("existingConversation", existingConversation);
-  console.log("newConversation", newConversation);
+  const newConversation = new Conversation({ participants });
   try {
     await Conversation.create(newConversation);
 
     const conversation = await Conversation.findOne({
       _id: newConversation._id,
-    }).populate("participants");
+    }).populate({
+      path: "participants",
+      select: "-password",
+    });
 
     res.status(200).json({
       isSuccess: true,
@@ -57,55 +61,31 @@ router.post("/conversation", async (req, res) => {
   }
 });
 
-// Function to check if all elements in an array are distinct
 function areDistinct(arr) {
   const set = new Set(arr);
   return set.size === arr.length;
 }
 
 // GET route to retrieve a particular conversation by senderId and receiverId
-router.get("/conversation/:senderId/:receiverId", async (req, res) => {
-  const { senderId, receiverId } = req.params;
-  try {
-    const conversation = await Conversation.findOne({
-      participants: { $all: [senderId, receiverId] },
-    });
-
-    if (!conversation) {
-      return res.status(404).json({
-        isSuccess: false,
-        message: "Conversation not found",
-      });
-    }
-
-    res.status(200).json({
-      isSuccess: true,
-      conversation,
-    });
-  } catch (error) {
-    res.status(500).json({
-      isSuccess: false,
-      error: error,
-      message: "Failed to retrieve the conversation",
-    });
-  }
-});
 
 // GET route to retrieve all conversations of a user by userId
-router.get("/conversations/:userId", async (req, res) => {
-  const { userId } = req.params;
+router.get("/conversations", requireSignIn, async (req, res) => {
+  const { userId } = req.user;
   try {
     const conversations = await Conversation.find({
       participants: userId,
     })
-      .populate("participants")
+      .populate({
+        path: "participants",
+        select: "-password -isAdmin -__v -isGoogleLogin -isEmailVerfied",
+      })
       .populate("lastMessage")
       .sort({ updatedAt: -1 });
 
     if (conversations.length === 0) {
       return res.status(404).json({
         isSuccess: false,
-        message: "No conversations found for the user",
+        message: "Start New conversations",
       });
     }
 

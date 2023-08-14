@@ -72,7 +72,6 @@ const getUsers = (userId) => {
 
 io.on("connection", (socket) => {
   console.log("A user connected.", socket.id);
-
   socket.on("getNotification", (data) => {
     socket.broadcast.emit("sendNotification", data);
   });
@@ -85,9 +84,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("sendMessage", (message) => {
-    console.log("message", message);
     const user = getUsers(message.receiver);
-    console.log("user", user);
     io.to(user?.socketId).emit("getMessage", message);
   });
 

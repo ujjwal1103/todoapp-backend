@@ -34,13 +34,16 @@ const userSchema = new mongoose.Schema({
             ? `${props.value} is not a valid 10-digit phone number`
             : 'Phone number should be a valid 10-digit number or empty'
       }
-  
     },
     dp: {
       type: String,
       default:"https://firebasestorage.googleapis.com/v0/b/image-upload-b22f2.appspot.com/o/images%2Favatar.svg?alt=media&token=506117cf-32ff-4aae-be4b-33ad5c3318ca"
     },
     isGoogleLogin: {
+      type: Boolean,
+      default: false,
+    },
+    isEmailVerfied: {
       type: Boolean,
       default: false,
     }

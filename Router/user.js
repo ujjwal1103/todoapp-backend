@@ -2,10 +2,14 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const User = require("../model/User.js"); // Assuming your user model file is in the same directory
-const { requireSignIn } = require("../middleware/authMiddleware.js");
+const { requireSignIn, isAdmin } = require("../middleware/authMiddleware.js");
 const Conversation = require("../model/Conversation.js");
-
 const router = express.Router();
+
+const isValidEmail = (email) => {
+  const regex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+  return email.match(regex);
+};
 
 // creat a new account
 router.post("/register", async (req, res) => {
@@ -51,15 +55,31 @@ router.post("/register", async (req, res) => {
     }
   }
   try {
-    const { email, password, name, mobileNumber } = req.body;
+    const { email, password, name, mobileNumber, isAdmin } = req.body;
+
     if (!email || !password || !name) {
-      return res.status(400).json({ error: "Empty Field", message: "All fields are required", isSuccess: false });
+      return res.status(400).json({
+        error: "Empty Field",
+        message: "All fields are required",
+        isSuccess: false,
+      });
     }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        error: "Email Validation",
+        message: "Invalid Email Address",
+        isSuccess: false,
+      });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res
-        .status(401)
-        .json({error: "Email already exists",message: "Email already exists", isSuccess: false });
+      return res.status(401).json({
+        error: "Email already exists",
+        message: "Email already exists",
+        isSuccess: false,
+      });
     }
 
     const hashPassword = await bcrypt.hash(password, 10);
@@ -68,6 +88,7 @@ router.post("/register", async (req, res) => {
       password: hashPassword,
       name,
       mobileNumber,
+      isAdmin,
     });
     await newUser.save();
     const token = jwt.sign({ userId: newUser._id }, "your-secret-key", {
@@ -83,7 +104,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// Login endpoint
+// Login a account
 router.post("/login", async (req, res) => {
   if (req.body.accessToken && req.body.isGoogleLogin) {
     const { email, name, dp } = req.body;
@@ -128,17 +149,23 @@ router.post("/login", async (req, res) => {
   }
   try {
     const { email, password } = req.body;
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({
+        error: "Email Validation",
+        message: "Invalid Email Address",
+        isSuccess: false,
+      });
+    }
     // Find the user by email
     const user = await User.findOne({ email });
 
     if (!user || user.isGoogleLogin) {
-      return res
-        .status(401)
-        .json({
-          error: "Invalid email or password",
-          message: "Invalid email or password",
-          isSuccess: false,
-        });
+      return res.status(401).json({
+        error: "Invalid email or password",
+        message: "Invalid email or password",
+        isSuccess: false,
+      });
     }
     // Compare the provided password with the hashed password
     const passwordMatch = await bcrypt.compare(password, user.password);
@@ -169,54 +196,93 @@ router.post("/login", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    res
-      .status(500)
-      .json({
-        error: error,
-        message: "Internal server error",
-        isSuccess: false,
-      });
+    res.status(500).json({
+      error: error,
+      message: "Internal server error",
+      isSuccess: false,
+    });
   }
 });
-router.get("/test", requireSignIn, async (req, res) => {
-  res.json("test api");
-});
 
-router.put("/user/:id", requireSignIn, async (req, res) => {
-  const { id } = req.params;
-  console.log(req.body);
+router.put("/user", requireSignIn, async (req, res) => {
+  const { userId } = req.user;
+  const { email } = req.body;
+
+  if (email && !isValidEmail(email)) {
+    return res.status(400).json({
+      error: "Email Validation",
+      message: "Invalid Email Address",
+      isSuccess: false,
+    });
+  }
+
+  if (email) {
+    const existingUser = await User.findOne({ email });
+
+    if (existingUser && existingUser._id.toString() !== userId) {
+      return res.status(401).json({
+        error: "Email already exists",
+        message: "Email already exists",
+        isSuccess: false,
+      });
+    }
+  }
+
   try {
-    let user = await User.findByIdAndUpdate(id, { ...req.body });
+    let user = await User.findById(userId).select("-password -__v");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    // Update user with the new values from the request body
-    res.json({ isSuccess: true, message: "User updated successfully", user });
+    // Check if any updates are needed by comparing the current user data with the request body
+    let updates = {};
+    let isUpdateRequired = false;
+    for (const key in req.body) {
+      if (user[key] !== req.body[key]) {
+        updates[key] = req.body[key];
+        isUpdateRequired = true;
+      }
+    }
+    if (isUpdateRequired) {
+      user = await User.findByIdAndUpdate(
+        userId,
+        { $set: updates },
+        { new: true }
+      ).select("-password -__v");
+    }
+
+    res.json({
+      isSuccess: true,
+      message: isUpdateRequired
+        ? "User updated successfully"
+        : "No updates required",
+      user,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Server Error" });
+    return res.status(500).json({ message: "Server Error" });
   }
 });
 
-router.get("/user/:id", async (req, res) => {
-  const { id } = req.params;
+//get a user
+router.get("/user", requireSignIn, async (req, res) => {
+  const { userId } = req.user;
   try {
-    let user = await User.findOne({ _id: id }).select("-password");
+    let user = await User.findOne({ _id: userId }).select("-password -__v");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     res.json({ isSuccess: true, message: "user", user });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ isSuccess: false, message: "Server Error" });
+    res
+      .status(500)
+      .json({ isSuccess: false, message: "Internal Server Error" });
   }
 });
-router.put("/user/dp/:id", async (req, res) => {
-  const userId = req.params.id; // Get the user ID from the request parameters.
-  const pic = req.body.pic; // Get the new value for the profilepc field from the request body.
 
+router.put("/user/dp", requireSignIn, isAdmin, async (req, res) => {
+  const { userId } = req.user;
+  const pic = req.body.pic;
   try {
-    // Find the user document by ID and update the profilepc field.
     const updatedUser = await User.findByIdAndUpdate(
       { _id: userId },
       { dp: pic },
@@ -224,7 +290,6 @@ router.put("/user/dp/:id", async (req, res) => {
     ).select("-password");
 
     if (updatedUser) {
-      // If the document was updated successfully, send the updated user as the response.
       res.json({
         isSuccess: true,
         user: updatedUser,
@@ -241,9 +306,10 @@ router.put("/user/dp/:id", async (req, res) => {
   }
 });
 
-router.get("/users", async (req, res) => {
+router.get("/users", requireSignIn, isAdmin, async (req, res) => {
   try {
     let users = await User.find();
+   
     res.json({ isSuccess: true, message: "user", users });
   } catch (error) {
     console.error(error);
@@ -251,44 +317,29 @@ router.get("/users", async (req, res) => {
   }
 });
 
-router.get("/conversation/users/:userId", async (req, res) => {
+router.get("/conversation/users", requireSignIn, async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { userId } = req.user;
     const { search } = req.query;
 
-    // Find all conversations where the given userId is a participant
     const conversations = await Conversation.find({ participants: userId });
 
-    console.log(conversations);
+    const participants = conversations.reduce((acc, conversation) => {
+      return [...acc, ...conversation.participants];
+    }, []);
 
-    if (conversations.length === 0) {
-      // If no conversations found, return all users
-      const users = await User.find();
-      res.json({ isSuccess: true, message: "user", users });
-    } else {
-      // If conversations found, get an array of all participant IDs from all conversations
-      const participants = conversations.reduce((acc, conversation) => {
-        return [...acc, ...conversation.participants];
-      }, []);
-
-      // Remove duplicate participant IDs
-      const uniqueParticipants = [...new Set(participants)];
-
-      const filters = {
-        ...(search && {
-          $or: [
-            { name: { $regex: search, $options: "i" } },
-            { email: { $regex: search, $options: "i" } },
-          ],
-        }),
-        _id: { $ne: userId, $nin: uniqueParticipants },
-      };
-
-      // Find all users who are not in any conversation (excluding the current user)
-      const users = await User.find(filters).select("dp _id name");
-
-      res.json({ isSuccess: true, message: "user", users });
-    }
+    const uniqueParticipants = [...new Set(participants)];
+    const filters = {
+      ...(search && {
+        $or: [
+          { name: { $regex: search, $options: "i" } },
+          { email: { $regex: search, $options: "i" } },
+        ],
+      }),
+      _id: { $ne: userId, $nin: uniqueParticipants },
+    };
+    const users = await User.find(filters).select("dp _id name email");
+    res.json({ isSuccess: true, message: "user", users });
   } catch (error) {
     console.error(error);
     res.status(500).json({ isSuccess: false, message: "Server Error" });
