@@ -1,17 +1,16 @@
 const express = require("express");
 const router = express.Router();
-const Message = require("../model/Message");
+const Message = require("Message");
 const Conversation = require("../model/Conversation");
 const { requireSignIn } = require("../middleware/authMiddleware");
 
 router.post("/message", requireSignIn, async (req, res) => {
-  console.log("reqbody", req.body);
   try {
     const newMessage = req.body;
     newMessage.seen = false;
     const message = await Message.create(newMessage);
 
-    const conversation = await Conversation.findByIdAndUpdate(
+    await Conversation.findByIdAndUpdate(
       { _id: req.body.conversationId },
       { lastMessage: message._id },
       { new: true }
@@ -105,21 +104,19 @@ router.put("/seen", requireSignIn, async (req, res) => {
   const conversationId = req.body.conversationId;
   const filter = {
     conversationId: conversationId,
-    receiver: userId
+    receiver: userId,
   };
   const update = {
-    seen: true
+    seen: true,
   };
   try {
     await Message.updateMany(filter, update);
     const updatedMessages = await Message.find(filter);
-    console.log(updatedMessages);
     res.status(200).json(updatedMessages);
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "An error occurred" });
   }
 });
-
 
 module.exports = router;

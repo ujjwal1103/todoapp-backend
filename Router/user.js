@@ -187,7 +187,6 @@ router.post("/login", async (req, res) => {
       gender: user.gender,
       mobileNumber: user.mobileNumber,
     };
-    console.log(newuser);
     res.status(201).json({
       user: newuser,
       message: "Login successful",

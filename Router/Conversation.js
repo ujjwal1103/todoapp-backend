@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Conversation = require("../model/Conversation");
 const mongoose = require("mongoose");
-const Message = require("../model/Message");
+const Message = require("Message");
 const { requireSignIn } = require("../middleware/authMiddleware");
 
 router.post("/conversation/:id", requireSignIn, async (req, res) => {
@@ -26,7 +26,7 @@ router.post("/conversation/:id", requireSignIn, async (req, res) => {
   }).populate({
     path: "participants",
     select: "-password -__v",
-  });;
+  });
 
   if (existingConversation) {
     return res.status(409).json({
@@ -66,9 +66,6 @@ function areDistinct(arr) {
   return set.size === arr.length;
 }
 
-// GET route to retrieve a particular conversation by senderId and receiverId
-
-// GET route to retrieve all conversations of a user by userId
 router.get("/conversations", requireSignIn, async (req, res) => {
   const { userId } = req.user;
   try {

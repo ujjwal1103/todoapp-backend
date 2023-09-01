@@ -4,7 +4,14 @@ const userSchema = new mongoose.Schema({
     email: {
       type: String,
       required: true,
-      unquie: true
+      unquie: true,
+      validate: {
+        validator: (value)=> {
+          const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+          return !value || re.test(value);
+        },
+        message: "Invalide Email Address"
+      }
     },
     password: {
       type: String,

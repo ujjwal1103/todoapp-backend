@@ -1,5 +1,3 @@
-// app.js
-
 const express = require("express");
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
@@ -11,21 +9,17 @@ require("dotenv").config();
 const port = process.env.PORT || 3100;
 const app = express();
 
-// Connect to MongoDB Atlas
 mongoose
   .connect(process.env.DB_URL)
   .then(() => console.log("Connected to MongoDB Atlas"))
   .catch((error) => console.error("Error connecting to MongoDB Atlas:", error));
 
-// Import and setup socket.io with the httpServer
 const httpServer = createServer(app);
 
-// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 app.use(express.json());
 
-// Import and use the route handlers
 const todosRouter = require("./Router/todo.js");
 const userRouter = require("./Router/user.js");
 const productRouter = require("./Router/product.js");
@@ -36,6 +30,7 @@ const orderRouter = require("./Router/order.js");
 const productReviewRouter = require("./Router/productReview.js");
 const conversationRouter = require("./Router/Conversation.js");
 const messageRouter = require("./Router/message.js");
+const addressRouter = require("./Router/address.js");
 
 app.use("/api", todosRouter);
 app.use("/api", userRouter);
@@ -47,6 +42,7 @@ app.use("/api", orderRouter);
 app.use("/api", productReviewRouter);
 app.use("/api", conversationRouter);
 app.use("/api", messageRouter);
+app.use("/api", addressRouter);
 
 const io = socketIo(httpServer, {
   cors: {
@@ -84,8 +80,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("sendMessage", (message) => {
+    console.log(message);
     const user = getUsers(message.receiver);
     io.to(user?.socketId).emit("getMessage", message);
+  });
+
+  socket.on("seenMessages", (data) => {
+    const user = getUsers(data.id);
+
+    io.to(user?.socketId).emit("seen", true);
   });
 
   socket.on("disconnect", () => {
@@ -95,7 +98,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start the server
 httpServer.listen(port, () => {
   console.log(`Server listening on port: http://localhost:${port}`);
 });
